@@ -1,4 +1,4 @@
-#include "rct_image_tools/aruco_finder.h".h"
+#include "rct_image_tools/aruco_finder.h"
 
 rct_image_tools::ArucoGridBoardObservationFinder::ArucoGridBoardObservationFinder(const cv::aruco::GridBoard& board)
     : board_(board)
@@ -31,12 +31,37 @@ rct_image_tools::ArucoGridBoardObservationFinder::findObservations(const cv::Mat
   return map_ids_to_obs_corners;
 }
 
-//cv::Mat
-//rct_image_tools::ArucoGridBoardObservationFinder::drawObservations(const cv::Mat& image,
-//                                                                   const std::map<int, std::vector<Eigen::Vector2d>>& observations) const
-//{
-//  ObservationPoints cv_obs(observations.size());
-//  std::transform(observations.begin(), observations.end(), cv_obs.begin(),
-//                 [](const Eigen::Vector2d& o) { return cv::Point2d(o.x(), o.y()); });
-//  return renderObservations(image, cv_obs, target_);
-//}
+cv::Mat
+rct_image_tools::ArucoGridBoardObservationFinder::drawObservations(const cv::Mat& image,
+                                                                   const std::map<int, std::vector<Eigen::Vector2d>>& observations) const
+{
+  std::vector<int> marker_ids;
+  std::vector<std::vector<cv::Point2f>> marker_corners;
+  for(std::map<int, std::vector<Eigen::Vector2d>>::const_iterator it = observations.begin(); it != observations.end(); ++it)
+  {
+    marker_ids.push_back(it->first);
+    std::vector<cv::Point2f> cv_obs(it->second.size());
+    std::transform(it->second.begin(), it->second.end(), cv_obs.begin(), [](const Eigen::Vector2d& o) {return cv::Point2d(o.x(), o.y()); });
+    marker_corners.push_back(cv_obs);
+  }
+  cv::aruco::drawDetectedMarkers(image, marker_corners, marker_ids);
+  return image;
+}
+
+std::map<int, std::vector<Eigen::Vector3d>>
+rct_image_tools::mapArucoIdsToObjPts(const cv::aruco::GridBoard& board)
+{
+  std::map<int, std::vector<Eigen::Vector3d>> map_ids_to_corners;
+  for (int i = 0; i < board.ids.size(); i++)
+  {
+    std::vector<Eigen::Vector3d> obj_pts(board.objPoints[i].size());
+    std::transform(board.objPoints[i].begin(), board.objPoints[i].end(), obj_pts.begin(), [](const cv::Point3f& o) {return Eigen::Vector3d(o.x, o.y, o.z); });
+    map_ids_to_corners.insert(std::make_pair(board.ids[i], obj_pts));
+//    std::printf("ID: %i\n%f, %f, %f\n%f, %f, %f\n%f, %f, %f\n%f, %f, %f\n",  board.ids[i],
+//                obj_pts[0][0], obj_pts[0][1], obj_pts[0][2],
+//                obj_pts[1][0], obj_pts[1][1], obj_pts[1][2],
+//                obj_pts[2][0], obj_pts[2][1], obj_pts[2][2],
+//                obj_pts[3][0], obj_pts[3][1], obj_pts[3][2]);
+  }
+  return map_ids_to_corners;
+}

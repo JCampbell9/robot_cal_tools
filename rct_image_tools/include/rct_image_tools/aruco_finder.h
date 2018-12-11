@@ -7,6 +7,7 @@
 #include <rct_optimizations/types.h>
 #include <map>
 #include <Eigen/Core>
+#include <iostream>
 
 namespace rct_image_tools
 {
@@ -32,5 +33,9 @@ public:
 private:
   cv::aruco::GridBoard board_;
 };
+
+std::map<int, std::vector<Eigen::Vector3d>>
+mapArucoIdsToObjPts(const cv::aruco::GridBoard& board);
+
 }
 #endif // ARUCO_FINDER_H
