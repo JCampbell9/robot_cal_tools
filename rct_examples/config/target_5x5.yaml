@@ -1,4 +1,4 @@
 target_definition:
   rows: 5
   cols: 5
-  spacing: 0.015 # (meters between dot centers)
+  spacing: 0.02333625 # (meters between dot centers)
