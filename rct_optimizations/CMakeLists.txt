@@ -20,6 +20,8 @@ add_library(${PROJECT_NAME} SHARED
   src/${PROJECT_NAME}/camera_intrinsic.cpp
   src/${PROJECT_NAME}/pnp.cpp
   src/${PROJECT_NAME}/multi_camera_pnp.cpp
+  # DH Chain Kinematic Calibration
+  src/${PROJECT_NAME}/dh_chain_kinematic_calibration.cpp
 )
 target_compile_options(${PROJECT_NAME} PUBLIC -std=c++14)
 target_compile_options(${PROJECT_NAME} PRIVATE -Wall -Wextra)
