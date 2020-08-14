@@ -83,20 +83,24 @@ std::pair<KinematicMeasurement::Set, KinematicMeasurement::Set> divide(const Kin
 
   std::size_t n = static_cast<std::size_t>(static_cast<double>(measurements.size()) * training_pct);
 
-  std::vector<std::size_t> training_indices(cal_indices.begin(), cal_indices.begin() + n);
   KinematicMeasurement::Set training_set;
-  training_set.reserve(training_indices.size());
-  for (const std::size_t idx : training_indices)
   {
-    training_set.push_back(measurements.at(idx));
+    std::vector<std::size_t> training_indices(cal_indices.begin(), cal_indices.begin() + n);
+    training_set.reserve(training_indices.size());
+    for (const std::size_t idx : training_indices)
+    {
+      training_set.push_back(measurements.at(idx));
+    }
   }
 
-  std::vector<std::size_t> test_indices(cal_indices.begin() + n, cal_indices.end());
   KinematicMeasurement::Set test_set;
-  test_set.reserve(test_indices.size());
-  for (const std::size_t idx : test_indices)
   {
-    test_set.push_back(measurements.at(idx));
+    std::vector<std::size_t> test_indices(cal_indices.begin() + n, cal_indices.end());
+    test_set.reserve(test_indices.size());
+    for (const std::size_t idx : test_indices)
+    {
+      test_set.push_back(measurements.at(idx));
+    }
   }
 
   return std::make_pair(training_set, test_set);
@@ -172,6 +176,41 @@ void test(const DHChain& initial_camera_chain, const DHChain& initial_target_cha
   std::cout << "Orientation difference Std. Dev.: " << std::sqrt(ba::variance(ori_acc)) << std::endl;
 }
 
+void test2(const DHChain& initial_chain, const KinematicCalibrationResult& result, const KinematicMeasurement::Set& measurements)
+{
+  // Test the result by moving the robot around to a lot of positions and seeing of the results match
+  DHChain chain(initial_chain, result.target_chain_dh_offsets);
+
+  namespace ba = boost::accumulators;
+  ba::accumulator_set<double, ba::stats<ba::tag::mean, ba::tag::variance>> pos_acc;
+  ba::accumulator_set<double, ba::stats<ba::tag::mean, ba::tag::variance>> ori_acc;
+
+  for (const KinematicMeasurement& m : measurements)
+  {
+    // Build the transforms from the camera chain base out to the camera
+    Eigen::Isometry3d chain_fk = chain.getFK<double>(m.target_chain_joints);
+//    Eigen::Isometry3d camera_base_to_camera = camera_chain_fk * result.camera_mount_to_camera;
+
+    // Build the transforms from the camera chain base out to the target
+//    Eigen::Isometry3d camera_base_to_target =
+//        result.camera_base_to_target_base * target_chain_fk * result.target_mount_to_target;
+
+    // Now that we have two transforms in the same frame, get the target point in the camera frame
+    Eigen::Isometry3d camera_to_target = result.camera_mount_to_camera.inverse() * chain_fk * result.target_mount_to_target;
+
+    // Compare
+    Eigen::Isometry3d diff = camera_to_target.inverse() * m.camera_to_target;
+    pos_acc(diff.translation().norm());
+    ori_acc(Eigen::Quaterniond(camera_to_target.linear()).angularDistance(Eigen::Quaterniond(m.camera_to_target.linear())));
+  }
+
+  std::cout << "Position Difference Mean: " << ba::mean(pos_acc) << std::endl;
+  std::cout << "Position Difference Std. Dev.: " << std::sqrt(ba::variance(pos_acc)) << std::endl;
+
+  std::cout << "Orientation Difference Mean: " << ba::mean(ori_acc) << std::endl;
+  std::cout << "Orientation difference Std. Dev.: " << std::sqrt(ba::variance(ori_acc)) << std::endl;
+}
+
 template <typename T>
 bool get(const ros::NodeHandle& nh, const std::string& key, T& val)
 {
@@ -199,7 +238,8 @@ int main(int argc, char** argv)
   // Split the observations into a training and validation group
   std::pair<KinematicMeasurement::Set, KinematicMeasurement::Set> measurement_sets = divide(measurements, 0.8);
 
-  KinematicCalibrationProblemPose3D problem(DHChain({}), createTwoAxisPositioner());
+//  KinematicCalibrationProblemPose3D problem(DHChain({}), createTwoAxisPositioner());
+  KinematicCalibrationProblem3D problem(createTwoAxisPositioner());
   problem.observations = measurement_sets.first;
   problem.target_mount_to_target_guess = Eigen::Isometry3d::Identity();
   problem.target_mount_to_target_guess.translate(Eigen::Vector3d(0.17, -0.65, 0.5));
@@ -210,30 +250,32 @@ int main(int argc, char** argv)
   problem.camera_mount_to_camera_guess = Eigen::Isometry3d::Identity();
   problem.camera_mount_to_camera_guess.translate(Eigen::Vector3d(2.2, 0.7, 1.075));
 
-  problem.camera_base_to_target_base_guess = Eigen::Isometry3d::Identity();
+//  problem.camera_base_to_target_base_guess = Eigen::Isometry3d::Identity();
 
-  problem.camera_chain_offset_stdev = 0.001;
-  problem.target_chain_offset_stdev = 0.005;
+  //  problem.camera_chain_offset_stdev = 0.001;
+  //  problem.target_chain_offset_stdev = 10.01;
+
+  problem.chain_offset_stdev = 0.1;
 
   // Mask a few DH parameters in the target chain (index 1)
   {
     Eigen::Matrix<bool, Eigen::Dynamic, 4> mask =
-        Eigen::Matrix<bool, Eigen::Dynamic, 4>::Constant(problem.target_chain.dof(), 4, false);
+        Eigen::Matrix<bool, Eigen::Dynamic, 4>::Constant(problem.chain.dof(), 4, false);
 
     // Mask the last row because they duplicate the target mount to target transform
     mask.bottomRows(1) << true, true, true, true;
 
     // Add the mask to the problem
-    problem.mask.at(1) = createDHMask(mask);
+    problem.mask.at(0) = createDHMask(mask);
   }
 
   /* Mask the camera base to target base transform (duplicated by target mount to target transform when
    * the target chain has no joints */
-  problem.mask.at(6) = { 0, 1, 2 };
-  problem.mask.at(7) = { 0, 1, 2 };
+//  problem.mask.at(6) = { 0, 1, 2 };
+//  problem.mask.at(7) = { 0, 1, 2 };
 
   // Mask the z-value of the camera mount to camera position
-//  problem.mask.at(4) = { 0, 2 };
+//  problem.mask.at(2) = { 0, 1, 2 };
 
   KinematicCalibrationResult result = optimize(problem);
 
@@ -253,12 +295,14 @@ int main(int argc, char** argv)
   ss << result.target_mount_to_target.rotation().eulerAngles(0, 1, 2) << "\n";
 
 
-  ss << "\nDH parameter offsets\n" << result.target_chain_dh_offsets.matrix().format(fmt) << "\n";
+  ss << "\nTarget chain DH parameter offsets\n" << result.target_chain_dh_offsets.matrix().format(fmt) << "\n";
+  ss << "\nCamera chain DH parameter offsets\n" << result.camera_chain_dh_offsets.matrix().format(fmt) << "\n";
   ss << result.covariance.printCorrelationCoeffAboveThreshold(0.5);
 
   std::cout << ss.str() << std::endl;
 
-  test(problem.camera_chain, problem.target_chain, result, measurement_sets.second);
+  //  test(problem.camera_chain, problem.target_chain, result, measurement_sets.second);
+  test2(problem.chain, result, measurement_sets.second);
 
   return 0;
 }
