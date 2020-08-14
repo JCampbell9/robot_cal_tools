@@ -35,7 +35,7 @@ public:
 
   virtual void setActualData()
   {
-    n_observations = 150;
+    n_observations = 1000;
     residual_threshold_sqr = 1.0e-12;
 
     position_diff_mean_threshold = 0.005;
@@ -255,6 +255,58 @@ public:
     problem.camera_base_to_target_base_guess = test::perturbPose(camera_base_to_target_base_truth, 0.05, 0.05);
   }
 };
+
+
+TEST(foo, TestCostFunction)
+{
+  DHChain chain_truth = test::createABBIRB2400();
+
+  // Create the transform from the camera mount (i.e. robot wrist) to the camera
+  Eigen::Isometry3d camera_mount_to_camera_truth = Eigen::Isometry3d::Identity();
+  camera_mount_to_camera_truth.translate(Eigen::Vector3d(1.0, 0.0, 0.0));
+//  camera_mount_to_camera_truth.rotate(Eigen::AngleAxisd(M_PI / 2.0, Eigen::Vector3d::UnitY()));
+
+  // Create the transform from the target mount (in this case an empty kinematic chain) to the target
+  Eigen::Isometry3d target_mount_to_target_truth = Eigen::Isometry3d::Identity();
+
+  // Initialize the optimization variables
+  // Camera mount to camera (cm_to_c) quaternion and translation
+  Eigen::Vector3d t_cm_to_c(camera_mount_to_camera_truth.translation());
+  Eigen::AngleAxisd rot_cm_to_c(camera_mount_to_camera_truth.rotation());
+  Eigen::Vector3d aa_cm_to_c(rot_cm_to_c.angle() * rot_cm_to_c.axis());
+
+  // Target mount to target (cm_to_c) quaternion and translation
+  Eigen::Vector3d t_tm_to_t(target_mount_to_target_truth.translation());
+  Eigen::AngleAxisd rot_tm_to_t(target_mount_to_target_truth.rotation());
+  Eigen::Vector3d aa_tm_to_t(rot_tm_to_t.angle() * rot_tm_to_t.axis());
+
+  // Create containers for the kinematic chain DH offsets
+  // Ceres will not work with parameter blocks of size zero, so create a dummy set of DH offsets for chains with DoF ==
+  // 0
+  Eigen::MatrixX4d chain_dh_offsets = Eigen::MatrixX4d::Zero(chain_truth.dof(), 4);
+
+  // Create a vector of the pointers to the optimization variables in the order that the cost function expects them
+  std::vector<double*> parameters =
+      DualDHChainCostPose3D::constructParameters(chain_dh_offsets, t_cm_to_c, aa_cm_to_c, t_tm_to_t, aa_tm_to_t);
+
+  // Create observations
+  KinematicMeasurement::Set observations =
+      test::createKinematicMeasurements(DHChain({}), chain_truth, camera_mount_to_camera_truth,
+                                        target_mount_to_target_truth, Eigen::Isometry3d::Identity(), 10);
+
+  // Test the cost function
+  for (const auto &obs : observations)
+  {
+    DHChainCostPose3D cost(obs, chain_truth);
+
+    double residual[3];
+    EXPECT_TRUE(cost(parameters.data(), residual));
+
+    EXPECT_NEAR(residual[0], 0, 1.0e-12);  // p1_x
+    EXPECT_NEAR(residual[1], 0, 1.0e-12);  // p1_y
+    EXPECT_NEAR(residual[2], 0, 1.0e-12);  // p1_z
+  }
+}
 
 TEST_F(DHChainMeasurementTest, TestCostFunction)
 {

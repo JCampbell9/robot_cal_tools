@@ -362,7 +362,7 @@ KinematicCalibrationResult optimize(const KinematicCalibrationProblemPose3D &par
     cost_block->AddParameterBlock(3);
 
     // Residual error
-    cost_block->SetNumResiduals(9);
+    cost_block->SetNumResiduals(3);
 
     // Add the residual block to the problem
     problem.AddResidualBlock(cost_block, nullptr, parameters);
@@ -447,6 +447,153 @@ KinematicCalibrationResult optimize(const KinematicCalibrationProblemPose3D &par
     result.target_chain_dh_offsets = Eigen::MatrixX4d::Zero(params.target_chain.dof(), 4);
   else
     result.target_chain_dh_offsets = target_chain_dh_offsets;
+
+  ceres::Covariance::Options cov_options = rct_optimizations::DefaultCovarianceOptions();
+  cov_options.null_space_rank = -1;  // automatically drop terms below min_reciprocal_condition_number
+  result.covariance = computeCovariance(problem, std::vector<const double*>(parameters.begin(), parameters.end()), param_labels, cov_options);
+
+  return result;
+}
+
+KinematicCalibrationResult optimize(const KinematicCalibrationProblem3D &params)
+{
+  // Initialize the optimization variables
+  // Camera mount to camera (cm_to_c) quaternion and translation
+  Eigen::Vector3d t_cm_to_c(params.camera_mount_to_camera_guess.translation());
+  Eigen::AngleAxisd rot_cm_to_c(params.camera_mount_to_camera_guess.rotation());
+  Eigen::Vector3d aa_cm_to_c(rot_cm_to_c.angle() * rot_cm_to_c.axis());
+
+  std::array<std::string, 3> t_cm_to_c_labels({params.label_camera_mount_to_camera + "_x",
+                                                params.label_camera_mount_to_camera + "_y",
+                                                params.label_camera_mount_to_camera + "_z"});
+  std::array<std::string, 3> aa_cm_to_c_labels({params.label_camera_mount_to_camera + "_rx",
+                                                 params.label_camera_mount_to_camera + "_ry",
+                                                 params.label_camera_mount_to_camera + "_rz"});
+
+  // Target mount to target (tm_to_t) quaternion and translation
+  Eigen::Vector3d t_tm_to_t(params.target_mount_to_target_guess.translation());
+  Eigen::AngleAxisd rot_tm_to_t(params.target_mount_to_target_guess.rotation());
+  Eigen::Vector3d aa_tm_to_t(rot_tm_to_t.angle() * rot_tm_to_t.axis());
+
+  std::array<std::string, 3> t_tm_to_t_labels({params.label_target_mount_to_target + "_x",
+                                                params.label_target_mount_to_target + "_y",
+                                                params.label_target_mount_to_target + "_z"});
+  std::array<std::string, 3> aa_tm_to_t_labels({params.label_target_mount_to_target + "_rx",
+                                                 params.label_target_mount_to_target + "_ry",
+                                                 params.label_target_mount_to_target + "_rz"});
+
+  // Create containers for the kinematic chain DH offsets
+  // Ceres will not work with parameter blocks of size zero, so create a dummy set of DH offsets for chains with DoF == 0
+  Eigen::MatrixX4d chain_dh_offsets;
+  std::vector<std::array<std::string, 4>> chain_param_labels;
+  if (params.chain.dof() != 0)
+  {
+    chain_dh_offsets = Eigen::MatrixX4d::Zero(params.chain.dof(), 4);
+    chain_param_labels = params.chain.getParamLabels();
+  }
+  else
+  {
+    chain_dh_offsets = Eigen::MatrixX4d::Zero(1, 4);
+    chain_param_labels = {{"camera_chain_placeholder_d", "camera_chain_placeholder_theta", "camera_chain_placeholder_r", "camera_chain_placeholder_alpha"}};
+  }
+
+  // Create a vector of the pointers to the optimization variables in the order that the cost function expects them
+  std::vector<double *> parameters
+      = DualDHChainCostPose3D::constructParameters(chain_dh_offsets,
+                                                   t_cm_to_c,
+                                                   aa_cm_to_c,
+                                                   t_tm_to_t,
+                                                   aa_tm_to_t);
+
+  std::vector<std::vector<std::string>> param_labels
+      = DualDHChainCostPose3D::constructParameterLabels(chain_param_labels,
+                                                        t_cm_to_c_labels,
+                                                        aa_cm_to_c_labels,
+                                                        t_tm_to_t_labels,
+                                                        aa_tm_to_t_labels);
+
+  // Set up the problem
+  ceres::Problem problem;
+
+  for (const auto &observation : params.observations)
+  {
+    // Allocate Ceres data structures - ownership is taken by the ceres
+    // Problem data structure
+    auto* cost_fn = new DHChainCostPose3D(observation, params.chain);
+
+    auto *cost_block = new ceres::DynamicAutoDiffCostFunction<DHChainCostPose3D>(cost_fn);
+
+    // Add the optimization parameters
+    // DH parameters for both kinematic chains
+    cost_block->AddParameterBlock(chain_dh_offsets.size());
+
+    // Camera mount to camera transform
+    cost_block->AddParameterBlock(3);
+    cost_block->AddParameterBlock(3);
+
+    // Target mount to target transform
+    cost_block->AddParameterBlock(3);
+    cost_block->AddParameterBlock(3);
+
+    // Residual error
+    cost_block->SetNumResiduals(3);
+
+    // Add the residual block to the problem
+    problem.AddResidualBlock(cost_block, nullptr, parameters);
+  }
+
+  // Add subset parameterization to mask variables that shouldn't be optimized
+  std::array<double*, 5> tmp;
+  std::copy_n(parameters.begin(), tmp.size(), tmp.begin());
+  addSubsetParameterization(problem, params.mask, tmp);
+
+  // Add a cost to drive the camera chain DH parameters towards an expected mean
+  if (params.chain.dof() != 0)
+  {
+    Eigen::ArrayXXd mean(
+        Eigen::ArrayXXd::Zero(chain_dh_offsets.rows(), chain_dh_offsets.cols()));
+
+    Eigen::ArrayXXd stdev(Eigen::ArrayXXd::Constant(chain_dh_offsets.rows(),
+                                                    chain_dh_offsets.cols(),
+                                                    params.chain_offset_stdev));
+
+    auto *fn = new MaximumLikelihood(mean, stdev);
+    auto *cost_block = new ceres::DynamicAutoDiffCostFunction<MaximumLikelihood>(fn);
+    cost_block->AddParameterBlock(chain_dh_offsets.size());
+    cost_block->SetNumResiduals(chain_dh_offsets.size());
+
+    problem.AddResidualBlock(cost_block, nullptr, chain_dh_offsets.data());
+  }
+
+  // Tell the optimization to keep constant the dummy DH offsets that might have been added to the 0-DoF chains
+  if (params.chain.dof() == 0)
+    problem.SetParameterBlockConstant(chain_dh_offsets.data());
+
+  // Setup the Ceres optimization parameters
+  ceres::Solver::Options options;
+  options.max_num_iterations = 150;
+  options.num_threads = 4;
+  options.minimizer_progress_to_stdout = true;
+  ceres::Solver::Summary summary;
+
+  // Solve the optimization
+  ceres::Solve(options, &problem, &summary);
+
+  // Report and save the results
+  KinematicCalibrationResult result;
+  result.initial_cost_per_obs = summary.initial_cost / summary.num_residuals;
+  result.converged = summary.termination_type == ceres::CONVERGENCE;
+  result.final_cost_per_obs = summary.final_cost / summary.num_residuals;
+
+  // Save the transforms
+  result.camera_mount_to_camera = createTransform(t_cm_to_c, aa_cm_to_c);
+  result.target_mount_to_target = createTransform(t_tm_to_t, aa_tm_to_t);
+
+  // Save the DH parameter offsets
+  if (params.chain.dof() == 0)
+    result.target_chain_dh_offsets = Eigen::MatrixX4d::Zero(params.chain.dof(), 4);
+  else
+    result.target_chain_dh_offsets = chain_dh_offsets;
 
   ceres::Covariance::Options cov_options = rct_optimizations::DefaultCovarianceOptions();
   cov_options.null_space_rank = -1;  // automatically drop terms below min_reciprocal_condition_number

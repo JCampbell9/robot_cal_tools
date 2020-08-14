@@ -116,6 +116,36 @@ struct KinematicCalibrationProblemPose3D
   std::string label_camera_base_to_target = "camera_base_to_target";
 };
 
+struct KinematicCalibrationProblem3D
+{
+  KinematicCalibrationProblem3D(DHChain chain_)
+    : chain(std::move(chain_))
+    , camera_mount_to_camera_guess(Eigen::Isometry3d::Identity())
+    , target_mount_to_target_guess(Eigen::Isometry3d::Identity())
+  {
+  }
+
+  DHChain chain;
+  KinematicMeasurement::Set observations;
+  Eigen::Isometry3d camera_mount_to_camera_guess;
+  Eigen::Isometry3d target_mount_to_target_guess;
+
+  /* Create an array of masks
+   * 0. Camera DH parameters (size joints x 4)
+   * 1. Camera mount to camera position (size 3)
+   * 2. Camera mount to camera angle axis (size 3)
+   * 3. Target mount to target position (size 3)
+   * 4. Target mount to target angle axis (size 3)
+   */
+  std::array<std::vector<int>, 5> mask;
+
+  /** @brief Expected standard deviation of the DH chain offsets for the camera DH chain */
+  double chain_offset_stdev = 1.0e-3;
+
+  std::string label_camera_mount_to_camera = "camera_mount_to_camera";
+  std::string label_target_mount_to_target = "target_mount_to_target";
+};
+
 struct KinematicCalibrationResult
 {
   bool converged;
@@ -213,6 +243,42 @@ public:
     param_labels.emplace_back(target_mount_to_target_angle_axis_labels.begin(), target_mount_to_target_angle_axis_labels.end());
     param_labels.emplace_back(camera_chain_base_to_target_chain_base_position_labels.begin(), camera_chain_base_to_target_chain_base_position_labels.end());
     param_labels.emplace_back(camera_chain_base_to_target_chain_base_angle_axis_labels.begin(), camera_chain_base_to_target_chain_base_angle_axis_labels.end());
+    return param_labels;
+  }
+
+  static std::vector<double *> constructParameters(Eigen::MatrixX4d &chain_dh_offsets,
+                                                  Eigen::Vector3d &camera_mount_to_camera_position,
+                                                  Eigen::Vector3d &camera_mount_to_camera_angle_axis,
+                                                  Eigen::Vector3d &target_mount_to_target_position,
+                                                  Eigen::Vector3d &target_mount_to_target_angle_axis)
+  {
+    std::vector<double *> parameters;
+    parameters.push_back(chain_dh_offsets.data());
+    parameters.push_back(camera_mount_to_camera_position.data());
+    parameters.push_back(camera_mount_to_camera_angle_axis.data());
+    parameters.push_back(target_mount_to_target_position.data());
+    parameters.push_back(target_mount_to_target_angle_axis.data());
+    return parameters;
+  }
+
+  static std::vector<std::vector<std::string>> constructParameterLabels(const std::vector<std::array<std::string, 4>>& chain_labels,
+                                                                        const std::array<std::string, 3>& camera_mount_to_camera_position_labels,
+                                                                        const std::array<std::string, 3>& camera_mount_to_camera_angle_axis_labels,
+                                                                        const std::array<std::string, 3>& target_mount_to_target_position_labels,
+                                                                        const std::array<std::string, 3>& target_mount_to_target_angle_axis_labels)
+  {
+    std::vector<std::vector<std::string>> param_labels;
+    std::vector<std::string> cc_labels_concatenated;
+    for (auto cc_label : chain_labels)
+    {
+      cc_labels_concatenated.insert(cc_labels_concatenated.end(), cc_label.begin(), cc_label.end());
+    }
+    param_labels.push_back(cc_labels_concatenated);
+
+    param_labels.emplace_back(camera_mount_to_camera_position_labels.begin(), camera_mount_to_camera_position_labels.end());
+    param_labels.emplace_back(camera_mount_to_camera_angle_axis_labels.begin(), camera_mount_to_camera_angle_axis_labels.end());
+    param_labels.emplace_back(target_mount_to_target_position_labels.begin(), target_mount_to_target_position_labels.end());
+    param_labels.emplace_back(target_mount_to_target_angle_axis_labels.begin(), target_mount_to_target_angle_axis_labels.end());
     return param_labels;
   }
 
@@ -344,27 +410,31 @@ class DualDHChainCostPose3D : public DualDHChainCost
 
     Isometry3<T> tform_error = camera_to_target_measured_.cast<T>() * camera_to_target.inverse();
 
+    residual[0] = tform_error.translation().x();
+    residual[1] = tform_error.translation().y();
+    residual[2] = tform_error.translation().z();
+
     // compute residual from orientation as nominal vs actual locations of points rotated by error transform
-    Vector4<T> p1, p2, p3;
-    p1 << T(20.0), T(0.0), T(0.0), T(1.0);
-    p2 << T(0.0), T(20.0), T(0.0), T(1.0);
-    p3 << T(0.0), T(0.0), T(20.0), T(1.0);
+//    Vector4<T> p1, p2, p3;
+//    p1 << T(20.0), T(0.0), T(0.0), T(1.0);
+//    p2 << T(0.0), T(20.0), T(0.0), T(1.0);
+//    p3 << T(0.0), T(0.0), T(20.0), T(1.0);
 
-    Vector4<T> p1_t = tform_error * p1;
-    Vector4<T> p2_t = tform_error * p2;
-    Vector4<T> p3_t = tform_error * p3;
+//    Vector4<T> p1_t = tform_error * p1;
+//    Vector4<T> p2_t = tform_error * p2;
+//    Vector4<T> p3_t = tform_error * p3;
 
-    residual[0] = p1_t.x() - p1.x();
-    residual[1] = p1_t.y() - p1.y();
-    residual[2] = p1_t.z() = p1.z();
+//    residual[0] = p1_t.x() - p1.x();
+//    residual[1] = p1_t.y() - p1.y();
+//    residual[2] = p1_t.z() = p1.z();
 
-    residual[3] = p2_t.x() - p2.x();
-    residual[4] = p2_t.y() - p2.y();
-    residual[5] = p2_t.z() - p2.z();
+//    residual[3] = p2_t.x() - p2.x();
+//    residual[4] = p2_t.y() - p2.y();
+//    residual[5] = p2_t.z() - p2.z();
 
-    residual[6] = p3_t.x() - p3.x();
-    residual[7] = p3_t.y() - p3.y();
-    residual[8] = p3_t.z() - p3.z();
+//    residual[6] = p3_t.x() - p3.x();
+//    residual[7] = p3_t.y() - p3.y();
+//    residual[8] = p3_t.z() - p3.z();
 
     return true;
   }
@@ -373,9 +443,63 @@ class DualDHChainCostPose3D : public DualDHChainCost
     Eigen::Isometry3d camera_to_target_measured_;
 };
 
+class DHChainCostPose3D
+{
+public:
+  DHChainCostPose3D(const KinematicMeasurement& measurement, const DHChain& chain)
+    : chain_(chain)
+    , chain_joints_(measurement.target_chain_joints)
+    , camera_to_target_measured_(measurement.camera_to_target)
+  {
+  }
+
+  template <typename T>
+  bool operator()(T const* const* parameters, T* residual) const
+  {
+    // Step 1: Load the data
+    // The first parameter is a pointer to the DH parameter offsets of the camera kinematic chain
+    Eigen::Map<const Eigen::Matrix<T, Eigen::Dynamic, 4>> chain_dh_offsets(parameters[0], chain_.dof(), 4);
+
+    // The next two parameters are pointers to the position and angle axis of the transform from the camera mount to the
+    // camera
+    std::size_t cm_to_c_idx = 1;
+    const Isometry3<T> camera_mount_to_camera = DualDHChainCost::createTransform(parameters, cm_to_c_idx);
+
+    // The next two parameters are pointers to the position and angle axis of the transform from the target mount to the
+    // target
+    std::size_t tm_to_t_idx = cm_to_c_idx + 2;
+    const Isometry3<T> target_mount_to_target = DualDHChainCost::createTransform(parameters, tm_to_t_idx);
+
+    // Step 2: Transformation math
+    // Build the transforms from the camera chain base out to the camera
+    Isometry3<T> chain_fk = chain_.getFK<T>(chain_joints_.cast<T>(), chain_dh_offsets);
+    //    Isometry3<T> camera_base_to_camera = chain_fk * camera_mount_to_camera;
+
+    // Now that we have two transforms in the same frame, get the difference between the expected and observed pose of
+    // the target
+//    Isometry3<T> camera_to_target = camera_base_to_camera.inverse() * target_mount_to_target;
+    Isometry3<T> camera_to_target = camera_mount_to_camera.inverse() * chain_fk * target_mount_to_target;
+
+    Isometry3<T> tform_error = camera_to_target_measured_.cast<T>() * camera_to_target.inverse();
+
+    residual[0] = tform_error.translation().x();
+    residual[1] = tform_error.translation().y();
+    residual[2] = tform_error.translation().z();
+
+    return true;
+  }
+
+protected:
+  DHChain chain_;
+  Eigen::VectorXd chain_joints_;
+  Eigen::Isometry3d camera_to_target_measured_;
+};
+
 KinematicCalibrationResult optimize(const KinematicCalibrationProblem2D3D &problem);
 
 KinematicCalibrationResult optimize(const KinematicCalibrationProblemPose3D &problem);
+
+KinematicCalibrationResult optimize(const KinematicCalibrationProblem3D& problem);
 
 } // namespace rct_optimizations
 
