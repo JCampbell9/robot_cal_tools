@@ -1,6 +1,7 @@
 #include <rct_optimizations/serialization/problems.h>
 #include <rct_optimizations_tests/utilities.h>
 #include <rct_optimizations_tests/observation_creator.h>
+#include <rct_optimizations_tests/dh_chain_observation_creator.h>
 #include <gtest/gtest.h>
 #include <fstream>
 
@@ -28,18 +29,14 @@ T deserialize(const std::string& file)
 template <typename ProblemT>
 struct ProblemCreator
 {
-  static ProblemT createProblem(const Eigen::Isometry3d& true_target,
-                                const Eigen::Isometry3d& true_camera,
-                                const std::shared_ptr<test::PoseGenerator>& pose_generator,
-                                const test::Target& target);
+  static ProblemT createProblem(const Eigen::Isometry3d& true_target, const Eigen::Isometry3d& true_camera,
+                                const std::shared_ptr<test::PoseGenerator>& pose_generator, const test::Target& target);
 };
 
 template <>
 ExtrinsicHandEyeProblem2D3D ProblemCreator<ExtrinsicHandEyeProblem2D3D>::createProblem(
-    const Eigen::Isometry3d& true_target,
-    const Eigen::Isometry3d& true_camera,
-    const std::shared_ptr<test::PoseGenerator>& pose_generator,
-    const test::Target& target)
+    const Eigen::Isometry3d& true_target, const Eigen::Isometry3d& true_camera,
+    const std::shared_ptr<test::PoseGenerator>& pose_generator, const test::Target& target)
 {
   test::Camera camera = test::makeKinectCamera();
 
@@ -54,15 +51,29 @@ ExtrinsicHandEyeProblem2D3D ProblemCreator<ExtrinsicHandEyeProblem2D3D>::createP
 
 template <>
 ExtrinsicHandEyeProblem3D3D ProblemCreator<ExtrinsicHandEyeProblem3D3D>::createProblem(
-    const Eigen::Isometry3d& true_target,
-    const Eigen::Isometry3d& true_camera,
-    const std::shared_ptr<test::PoseGenerator>& pose_generator,
-    const test::Target& target)
+    const Eigen::Isometry3d& true_target, const Eigen::Isometry3d& true_camera,
+    const std::shared_ptr<test::PoseGenerator>& pose_generator, const test::Target& target)
 {
   ExtrinsicHandEyeProblem3D3D problem;
   problem.target_mount_to_target_guess = true_target;
   problem.camera_mount_to_camera_guess = true_camera;
   problem.observations = test::createObservations(target, { pose_generator }, true_target, true_camera);
+  return problem;
+}
+
+template <>
+KinematicCalibrationProblem2D3D ProblemCreator<KinematicCalibrationProblem2D3D>::createProblem(
+    const Eigen::Isometry3d& true_target, const Eigen::Isometry3d& true_camera,
+    const std::shared_ptr<test::PoseGenerator>&, const test::Target& target)
+{
+  KinematicCalibrationProblem2D3D problem(test::createABBIRB2400(), test::createTwoAxisPositioner());
+  test::Camera camera = test::makeKinectCamera();
+  problem.intr = camera.intr;
+
+  problem.observations =
+      test::createKinematicObservations(problem.camera_chain, problem.target_chain, true_camera, true_target,
+                                        Eigen::Isometry3d::Identity(), target, camera, 100);
+
   return problem;
 }
 

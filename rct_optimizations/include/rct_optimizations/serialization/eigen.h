@@ -57,6 +57,33 @@ struct convert<Eigen::Matrix<FloatT, 3, 1>>
   }
 };
 
+template <typename FloatT>
+struct convert<Eigen::Matrix<FloatT, Eigen::Dynamic, 1>>
+{
+  using T = Eigen::Matrix<FloatT, Eigen::Dynamic, 1>;
+
+  static Node encode(const T& val)
+  {
+    YAML::Node node;
+    for (Eigen::Index i = 0; i < val.size(); ++i)
+    {
+      node.push_back(val(i));
+    }
+    return node;
+  }
+
+  static bool decode(const YAML::Node& node, T& val)
+  {
+    val.resize(node.size());
+    for (std::size_t i = 0; i < node.size(); ++i)
+    {
+      val(i) = node[i].as<FloatT>();
+    }
+
+    return true;
+  }
+};
+
 template<typename FloatT>
 struct convert<Eigen::Transform<FloatT, 3, Eigen::Isometry>>
 {
@@ -95,6 +122,35 @@ struct convert<Eigen::Transform<FloatT, 3, Eigen::Isometry>>
     quat.z() = node["qz"].as<FloatT>();
 
     val = Eigen::Translation<FloatT, 3>(trans) * quat;
+
+    return true;
+  }
+};
+
+template <typename FloatT>
+struct convert<Eigen::Matrix<FloatT, Eigen::Dynamic, 4>>
+{
+  using T = Eigen::Matrix<FloatT, Eigen::Dynamic, 4>;
+
+  static Node encode(const T& rhs)
+  {
+    Node node;
+    for (Eigen::Index row = 0; row < rhs.rows(); ++row)
+    {
+      Eigen::Matrix<FloatT, 4, 1> v = rhs.block(row, 0, 1, 4);
+      node.push_back(std::vector<double>(v.data(), v.data() + v.size()));
+    }
+    return node;
+  }
+
+  static bool decode(const Node& node, T& lhs)
+  {
+    lhs.resize(node.size(), 4);
+    for (std::size_t row = 0; row < node.size(); ++row)
+    {
+      const auto v = node[row].as<std::vector<double>>();
+      lhs.row(row) = Eigen::Map<const Eigen::Vector4d>(v.data());
+    }
 
     return true;
   }

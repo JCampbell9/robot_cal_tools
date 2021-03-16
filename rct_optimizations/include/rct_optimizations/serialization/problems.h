@@ -2,6 +2,7 @@
 
 #include <rct_optimizations/extrinsic_hand_eye.h>
 #include <rct_optimizations/serialization/types.h>
+#include <rct_optimizations/dh_chain_kinematic_calibration.h>
 
 namespace
 {
@@ -113,6 +114,76 @@ struct convert<rct_optimizations::ExtrinsicHandEyeResult>
     rhs.camera_mount_to_camera = toIsometry<double>(camera_mount_to_camera_pos, camera_mount_to_camera_rpy);
 
     return true;
+  }
+};
+
+template <>
+struct convert<rct_optimizations::KinematicCalibrationResult>
+{
+  static Node encode(const rct_optimizations::KinematicCalibrationResult& rhs)
+  {
+    Node node;
+    node["converged"] = rhs.converged;
+    node["initial_cost_per_observation"] = rhs.initial_cost_per_obs;
+    node["final_cost_per_observation"] = rhs.final_cost_per_obs;
+
+    // DH Chain
+    node["camera_chain_dh_offsets"] = rhs.camera_chain_dh_offsets;
+    node["target_chain_dh_offsets"] = rhs.target_chain_dh_offsets;
+
+    // Transforms
+    // Camera mount to camera
+    node["camera_mount_to_camera_pos"] = Eigen::Vector3d(rhs.camera_mount_to_camera.translation());
+    Eigen::Vector3d camera_mount_to_camera_rpy = rhs.camera_mount_to_camera.rotation().eulerAngles(2, 1, 0).reverse();
+    node["camera_mount_to_camera_ea"] = camera_mount_to_camera_rpy;
+
+    // Target Mount to target
+    node["target_mount_to_target_pos"] = Eigen::Vector3d(rhs.target_mount_to_target.translation());
+    Eigen::Vector3d target_mount_to_target_rpy = rhs.target_mount_to_target.rotation().eulerAngles(2, 1, 0).reverse();
+    node["target_mount_to_target_ea"] = target_mount_to_target_rpy;
+
+    // Base to camera
+    node["camera_base_to_target_base_pos"] = Eigen::Vector3d(rhs.camera_base_to_target_base.translation());
+    Eigen::Vector3d camera_base_to_target_base_rpy =
+        rhs.camera_base_to_target_base.rotation().eulerAngles(2, 1, 0).reverse();
+    node["camera_base_to_target_base_ea"] = camera_base_to_target_base_rpy;
+
+    return node;
+  }
+
+  static bool decode(const Node& node, rct_optimizations::KinematicCalibrationResult& rhs)
+  {
+    rhs.converged = node["converged"].as<decltype(rhs.converged)>();
+    rhs.initial_cost_per_obs = node["initial_cost_per_observation"].as<decltype(rhs.initial_cost_per_obs)>();
+    rhs.final_cost_per_obs = node["final_cost_per_observation"].as<decltype(rhs.final_cost_per_obs)>();
+
+    // DH Chain
+    rhs.camera_chain_dh_offsets = node["camera_chain_dh_offsets"].as<decltype(rhs.camera_chain_dh_offsets)>();
+    rhs.target_chain_dh_offsets = node["target_chain_dh_offsets"].as<decltype(rhs.target_chain_dh_offsets)>();
+
+    // Transforms
+    // Camera mount to camera
+    {
+      Eigen::Vector3d camera_mount_to_camera_pos = node["camera_mount_to_camera_pos"].as<Eigen::Vector3d>();
+      Eigen::Vector3d camera_mount_to_camera_rpy = node["camera_mount_to_camera_rpy"].as<Eigen::Vector3d>().reverse();
+      rhs.camera_mount_to_camera = toIsometry<double>(camera_mount_to_camera_pos, camera_mount_to_camera_rpy);
+    }
+
+    // Target Mount to target
+    {
+      Eigen::Vector3d target_mount_to_target_pos = node["target_mount_to_target_pos"].as<Eigen::Vector3d>();
+      Eigen::Vector3d target_mount_to_target_rpy = node["target_mount_to_target_rpy"].as<Eigen::Vector3d>().reverse();
+      rhs.target_mount_to_target = toIsometry<double>(target_mount_to_target_pos, target_mount_to_target_rpy);
+    }
+
+    // Base to camera
+    {
+      Eigen::Vector3d camera_base_to_target_base_pos = node["camera_base_to_target_base_pos"].as<Eigen::Vector3d>();
+      Eigen::Vector3d camera_base_to_target_base_rpy = node["camera_base_to_target_base_rpy"].as<Eigen::Vector3d>().reverse();
+      rhs.camera_base_to_target_base = toIsometry<double>(camera_base_to_target_base_pos, camera_base_to_target_base_rpy);
+    }
+
+    return node;
   }
 };
 

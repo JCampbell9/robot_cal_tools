@@ -86,4 +86,58 @@ struct convert<rct_optimizations::Observation<SENSOR_DIM, WORLD_DIM>>
   }
 };
 
+template <Eigen::Index SENSOR_DIM, Eigen::Index WORLD_DIM>
+struct convert<rct_optimizations::KinematicObservation<SENSOR_DIM, WORLD_DIM>>
+{
+  using T = rct_optimizations::KinematicObservation<SENSOR_DIM, WORLD_DIM>;
+
+  static Node encode(const T& obs)
+  {
+    YAML::Node node;
+    node["correspondences"] = obs.correspondence_set;
+    node["target_chain_joints"] = obs.target_chain_joints;
+    node["camera_chain_joints"] = obs.camera_chain_joints;
+    return node;
+  }
+
+  static bool decode(const YAML::Node &node, T &obs)
+  {
+    if (node.size() != 3)
+      return false;
+
+    obs.correspondence_set = node["correspondences"].as<decltype(obs.correspondence_set)>();
+    obs.target_chain_joints = node["target_chain_joints"].as<decltype(obs.target_chain_joints)>();
+    obs.camera_chain_joints = node["camera_chain_joints"].as<decltype(obs.camera_chain_joints)>();
+
+    return true;
+  }
+};
+
+template <>
+struct convert<rct_optimizations::KinematicMeasurement>
+{
+  using T = rct_optimizations::KinematicMeasurement;
+
+  static Node encode(const T& obs)
+  {
+    YAML::Node node;
+    node["camera_to_target"] = obs.camera_to_target;
+    node["target_chain_joints"] = obs.target_chain_joints;
+    node["camera_chain_joints"] = obs.camera_chain_joints;
+    return node;
+  }
+
+  static bool decode(const YAML::Node &node, T &obs)
+  {
+    if (node.size() != 3)
+      return false;
+
+    obs.camera_to_target = node["camera_to_target"].as<decltype(obs.camera_to_target)>();
+    obs.target_chain_joints = node["target_chain_joints"].as<decltype(obs.target_chain_joints)>();
+    obs.camera_chain_joints = node["camera_chain_joints"].as<decltype(obs.camera_chain_joints)>();
+
+    return true;
+  }
+};
+
 } // namespace YAML
