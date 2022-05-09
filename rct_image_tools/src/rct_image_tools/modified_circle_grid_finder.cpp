@@ -2,6 +2,7 @@
 #include <rct_image_tools/circle_detector.h>
 #include <opencv2/calib3d.hpp>
 #include <memory>
+#include <iostream>
 
 static void drawPointLabel(const std::string& label, const cv::Point2d& position, const cv::Scalar& color, cv::Mat& image)
 {
@@ -60,11 +61,6 @@ static std::vector<cv::Point2d> extractKeyPoints(const cv::Mat& image, const std
   std::vector<cv::KeyPoint> keypoints;
   cv::Point large_point;
 
-  std::size_t start_first_row = 0;
-  std::size_t end_first_row = cols - 1;
-  std::size_t start_last_row = rows * cols - cols;
-  std::size_t end_last_row = rows * cols - 1;
-
   for (double alpha = 1.0; alpha <= 3.0; alpha += 0.01)
   {
     bool found = false;
@@ -106,16 +102,29 @@ static std::vector<cv::Point2d> extractKeyPoints(const cv::Mat& image, const std
   std::size_t temp_rows = flipped ? cols : rows;
   std::size_t temp_cols = flipped ? rows : cols;
 
+  std::size_t start_first_row = 0;
+  std::size_t end_first_row = cols - 1;
+  std::size_t start_last_row = rows * cols - cols;
+  std::size_t end_last_row = rows * cols - 1;
+
   // Determine which circle is the largest
   double start_first_row_size = -1.0;
   double start_last_row_size = -1.0;
   double end_first_row_size = -1.0;
   double end_last_row_size = -1.0;
 
+  double start_first_row_avg_rel_size = 0;
+  double start_last_row_avg_rel_size = 0;
+  double end_first_row_avg_rel_size = 0;
+  double end_last_row_avg_rel_size = 0;
+
   cv::Point2d start_last_row_pt = centers[start_last_row];
   cv::Point2d end_last_row_pt = centers[end_last_row];
   cv::Point2d start_first_row_pt = centers[start_first_row];
   cv::Point2d end_first_row_pt = centers[end_first_row];
+
+  std::vector<double> center_sizes(centers.size(), 0);
+//  center_sizes.reserve(centers.size());
 
   for (std::size_t i = 0; i < keypoints.size(); i++)
   {
@@ -123,22 +132,74 @@ static std::vector<cv::Point2d> extractKeyPoints(const cv::Mat& image, const std
     double y = keypoints[i].pt.y;
     double ksize = keypoints[i].size;
 
+    for (std::size_t j = 0; j < centers.size(); j++)
+//    for (auto center : centers)
+    {
+      auto center = centers[j];
+      if (center.x == x && center.y == y)
+      {
+        center_sizes[j] = ksize;
+//        center_sizes.push_back(ksize);
+        break;
+      }
+    }
+  }
+  std::cout << "center_sizes.size(): " << center_sizes.size() << std::endl;
+
+  for (std::size_t i = 0; i < centers.size(); i++)
+  {
+    double x = centers[i].x;
+    double y = centers[i].y;
+    double ksize = center_sizes[i];
+
+    std::cout << "keypoint " << i << ": (" << x << ", " << y << ", " << ksize << ")";
+
     if (x == start_last_row_pt.x && y == start_last_row_pt.y)
     {
+      std::cout << "<-start_last_row" << " comparing to " << i+1 << " and " << i-cols;
       start_last_row_size = ksize;
+      if (i + 1 < center_sizes.size() && i - cols < center_sizes.size())
+      {
+        double start_last_row_rel_row_size = start_last_row_size / center_sizes[i+1];
+        double start_last_row_rel_col_size = start_last_row_size / center_sizes[i-cols];
+        start_last_row_avg_rel_size = (start_last_row_rel_row_size + start_last_row_rel_col_size)/2.0;
+      }
     }
     if (x == end_last_row_pt.x && y == end_last_row_pt.y)
     {
+        std::cout << "<-end_last_row" << " comparing to " << i-1 << " and " << i-cols;
       end_last_row_size = ksize;
+      if (i - 1 < center_sizes.size() && i - cols < center_sizes.size())
+      {
+        double end_last_row_rel_row_size = end_last_row_size / center_sizes[i-1];
+        double end_last_row_rel_col_size = end_last_row_size / center_sizes[i-cols];
+        end_last_row_avg_rel_size = (end_last_row_rel_row_size + end_last_row_rel_col_size)/2.0;
+      }
     }
     if (x == start_first_row_pt.x && y == start_first_row_pt.y)
     {
+        std::cout << "<-start_first_row" << " comparing to " << i+1 << " and " << i+cols;
       start_first_row_size = ksize;
+      if (i + 1 < center_sizes.size() && i + cols < center_sizes.size())
+      {
+        double start_first_row_rel_row_size = start_first_row_size / center_sizes[i+1];
+        double start_first_row_rel_col_size = start_first_row_size / center_sizes[i+cols];
+        start_first_row_avg_rel_size = (start_first_row_rel_row_size + start_first_row_rel_col_size)/2.0;
+      }
     }
     if (x == end_first_row_pt.x && y == end_first_row_pt.y)
     {
+        std::cout << "<-end_first_row" << " comparing to " << i-1 << " and " << i+cols;
       end_first_row_size = ksize;
+      if (i - 1 < center_sizes.size() && i + cols < center_sizes.size())
+      {
+        double end_first_row_rel_row_size = end_first_row_size / center_sizes[i-1];
+        double end_first_row_rel_col_size = end_first_row_size / center_sizes[i+cols];
+        end_first_row_avg_rel_size = (end_first_row_rel_row_size + end_first_row_rel_col_size)/2.0;
+      }
     }
+
+    std::cout << std::endl;
   }
 
   // No keypoint match for one or more corners
@@ -170,6 +231,11 @@ static std::vector<cv::Point2d> extractKeyPoints(const cv::Mat& image, const std
   // Construct the output object
   std::vector<cv::Point2d> observation_points;
   observation_points.reserve(centers.size());
+  std::cout << "start_first_row_avg_rel_size: " << start_first_row_avg_rel_size << std::endl;
+  std::cout << "end_first_row_avg_rel_size: " << end_first_row_avg_rel_size << std::endl;
+  std::cout << "start_last_row_avg_rel_size: " << start_last_row_avg_rel_size << std::endl;
+  std::cout << "end_last_row_avg_rel_size: " << end_last_row_avg_rel_size << std::endl;
+//  start_last_row_avg_rel_size = 9000;
 
   /*
     Note(cLewis): Largest circle at start of last row
@@ -178,9 +244,10 @@ static std::vector<cv::Point2d> extractKeyPoints(const cv::Mat& image, const std
     ......
     o.....
   */
-  if (start_last_row_size > start_first_row_size && start_last_row_size > end_first_row_size &&
-      start_last_row_size > end_last_row_size)
+  if (start_last_row_avg_rel_size > start_first_row_avg_rel_size && start_last_row_avg_rel_size > end_first_row_avg_rel_size &&
+      start_last_row_avg_rel_size > end_last_row_avg_rel_size)
   {
+    std::cout << "\tChose start_last_row_avg_rel_size: " << usual_ordering << std::endl;
     large_point.x = start_last_row_pt.x;
     large_point.y = start_last_row_pt.y;
     if (usual_ordering)
@@ -209,9 +276,10 @@ static std::vector<cv::Point2d> extractKeyPoints(const cv::Mat& image, const std
     ......
     ......
   */
-  else if (end_first_row_size > end_last_row_size && end_first_row_size > start_last_row_size &&
-           end_first_row_size > start_first_row_size)
+  else if (end_first_row_avg_rel_size > end_last_row_avg_rel_size && end_first_row_avg_rel_size > start_last_row_avg_rel_size &&
+           end_first_row_avg_rel_size > start_first_row_avg_rel_size)
   {
+      std::cout << "\tChose end_first_row_avg_rel_size: " << usual_ordering << std::endl;
     large_point.x = end_first_row_pt.x;
     large_point.y = end_first_row_pt.y;
     if (usual_ordering)
@@ -240,9 +308,10 @@ static std::vector<cv::Point2d> extractKeyPoints(const cv::Mat& image, const std
     ......
     .....o
   */
-  else if (end_last_row_size > start_last_row_size && end_last_row_size > end_first_row_size &&
-           end_last_row_size > start_first_row_size)
+  else if (end_last_row_avg_rel_size > start_last_row_avg_rel_size && end_last_row_avg_rel_size > end_first_row_avg_rel_size &&
+           end_last_row_avg_rel_size > start_first_row_avg_rel_size)
   {
+      std::cout << "\tChose end_last_row_avg_rel_size: " << usual_ordering  << std::endl;
     large_point.x = end_last_row_pt.x;
     large_point.y = end_last_row_pt.y;
 
@@ -275,9 +344,10 @@ static std::vector<cv::Point2d> extractKeyPoints(const cv::Mat& image, const std
     ......
     ......
   */
-  else if (start_first_row_size > end_last_row_size && start_first_row_size > end_first_row_size &&
-           start_first_row_size > start_last_row_size)
+  else if (start_first_row_avg_rel_size > end_last_row_avg_rel_size && start_first_row_avg_rel_size > end_first_row_avg_rel_size &&
+           start_first_row_avg_rel_size > start_last_row_avg_rel_size)
   {
+      std::cout << "\tChose start_first_row_avg_rel_size: " << usual_ordering  << std::endl;
     large_point.x = start_first_row_pt.x;
     large_point.y = start_first_row_pt.y;
     if (usual_ordering)
