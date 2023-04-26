@@ -7,6 +7,7 @@ find_package(yaml-cpp REQUIRED)
 find_package(rct_common REQUIRED)
 find_package(rct_optimizations REQUIRED)
 find_package(boost_plugin_loader REQUIRED)
+find_package(console_bridge REQUIRED)
 
 find_package(Eigen3 REQUIRED)
 if(NOT EIGEN3_INCLUDE_DIRS)
@@ -27,6 +28,8 @@ add_library(${PROJECT_NAME} SHARED
   src/${PROJECT_NAME}/aruco_finder.cpp
   src/${PROJECT_NAME}/charuco_grid_target.cpp
   src/${PROJECT_NAME}/charuco_finder.cpp
+  src/${PROJECT_NAME}/parameter_loaders.cpp
+  src/${PROJECT_NAME}/data_set.cpp
 )
 target_compile_options(${PROJECT_NAME} PUBLIC -std=c++11)
 target_compile_options(${PROJECT_NAME} PRIVATE -Wall -Wextra)
@@ -47,6 +50,7 @@ target_link_libraries(${PROJECT_NAME} PUBLIC
   yaml-cpp
   Eigen3::Eigen
   rct::rct_optimizations
+  console_bridge::console_bridge
 )
 
 # Target loader plugins

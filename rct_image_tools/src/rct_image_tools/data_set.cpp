@@ -1,11 +1,11 @@
-#include <rct_ros_tools/data_set.h>
-#include <rct_ros_tools/parameter_loaders.h>
+#include <rct_image_tools/data_set.h>
+#include <rct_image_tools/parameter_loaders.h>
 #include <rct_image_tools/image_utils.h>
 #include <rct_optimizations/serialization/eigen.h>
 
 #include <fstream>
 #include <opencv2/highgui.hpp>
-#include <ros/console.h>
+#include <console_bridge/console.h>
 #include <sys/stat.h>
 
 static std::string rootPath(const std::string& filename)
@@ -23,10 +23,8 @@ static std::string combine(const std::string& dir, const std::string& rel_path)
 cv::Mat rct_ros_tools::readImageOpenCV(const std::string& path)
 {
   cv::Mat image = cv::imread(path, cv::IMREAD_COLOR);
-  if (image.data == NULL)
-  {
-    ROS_ERROR("File failed to load or does not exist: %s", path.c_str());
-  }
+  if (image.data == nullptr)
+    throw std::runtime_error("File failed to load or does not exist: '" + path + "'");
   return image;
 }
 
@@ -43,14 +41,14 @@ rct_ros_tools::ExtrinsicDataSet parse(const YAML::Node& root, const std::string&
 
     if (image.empty())
     {
-      ROS_WARN_STREAM("Failed to load image " << i << ". Skipping...");
+      CONSOLE_BRIDGE_logWarn("Failed to load image %i. Skipping...", i);
       continue;
     }
 
     Eigen::Isometry3d p;
     if (!rct_ros_tools::loadPose(combine(root_path, pose_path), p))
     {
-      ROS_WARN_STREAM("Failed to load pose " << i << ". Skipping...");
+      CONSOLE_BRIDGE_logWarn("Failed to load pose %i. Skipping...", i);
       continue;
     }
 
@@ -71,7 +69,7 @@ boost::optional<rct_ros_tools::ExtrinsicDataSet> rct_ros_tools::parseFromFile(co
   }
   catch (const YAML::Exception& ex)
   {
-    ROS_ERROR_STREAM("Error while parsing YAML file: " << ex.what());
+    CONSOLE_BRIDGE_logError("Error while parsing YAML file: %s", ex.what());
     return {};
   }
 }
@@ -151,7 +149,7 @@ rct_ros_tools::ExtrinsicCorrespondenceDataSet::ExtrinsicCorrespondenceDataSet(co
         rct_image_tools::TargetFeatures target_features = target_finder.findTargetFeatures(data_set.images[i]);
         if (target_features.empty())
           throw std::runtime_error("Failed to find any target features in image " + std::to_string(i));
-        ROS_INFO_STREAM("Found " << target_features.size() << " target features");
+        CONSOLE_BRIDGE_logInform("Found %i target features", target_features.size());
 
         correspondences_(c, i) = target_finder.target().createCorrespondences(target_features);
 
@@ -169,7 +167,7 @@ rct_ros_tools::ExtrinsicCorrespondenceDataSet::ExtrinsicCorrespondenceDataSet(co
       catch (const std::exception& ex)
       {
         mask_(c, i) = 0;
-        ROS_ERROR_STREAM(ex.what());
+        CONSOLE_BRIDGE_logError(ex.what());
       }
     }
   }

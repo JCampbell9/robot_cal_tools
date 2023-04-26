@@ -1,5 +1,5 @@
 #include <rct_ros_tools/parameter_loaders.h>
-#include <rct_ros_tools/exceptions.h>
+#include <rct_image_tools/exceptions.h>
 #include <rct_optimizations/serialization/eigen.h>
 #include <rct_optimizations/serialization/types.h>
 
@@ -53,33 +53,6 @@ bool loadIntrinsics(const ros::NodeHandle& nh, const std::string& key,
   return true;
 }
 
-rct_optimizations::CameraIntrinsics loadIntrinsics(const std::string& path)
-{
-  try
-  {
-    YAML::Node n = YAML::LoadFile(path);
-    return n.as<rct_optimizations::CameraIntrinsics>();
-  }
-  catch (YAML::Exception &ex)
-  {
-    throw BadFileException(std::string("YAML failure: ") + ex.what());
-  }
-}
-
-bool loadIntrinsics(const std::string& path, rct_optimizations::CameraIntrinsics& intrinsics)
-{
-  try
-  {
-    intrinsics = loadIntrinsics(path);
-  }
-  catch (BadFileException &ex)
-  {
-    ROS_ERROR_STREAM("Failed to load intrinsics from file: " << ex.what());
-    return false;
-  }
-  return true;
-}
-
 Eigen::Isometry3d loadPose(const ros::NodeHandle &nh, const std::string &key)
 {
   XmlRpc::XmlRpcValue xml;
@@ -109,33 +82,6 @@ bool loadPose(const ros::NodeHandle& nh, const std::string& key, Eigen::Isometry
   catch (ros::InvalidParameterException &ex)
   {
     ROS_ERROR_STREAM("Failed to load pose parameter: " << ex.what());
-    return false;
-  }
-  return true;
-}
-
-Eigen::Isometry3d loadPose(const std::string& path)
-{
-  try
-  {
-    YAML::Node n = YAML::LoadFile(path);
-    return n.as<Eigen::Isometry3d>();
-  }
-  catch (YAML::Exception &ex)
-  {
-    throw BadFileException(std::string("YAML failure: ") + ex.what());
-  }
-}
-
-bool loadPose(const std::string& path, Eigen::Isometry3d& pose)
-{
-  try
-  {
-    pose = loadPose(path);
-  }
-  catch (BadFileException &ex)
-  {
-    ROS_ERROR_STREAM("Failed to load pose from file: " << ex.what());
     return false;
   }
   return true;
