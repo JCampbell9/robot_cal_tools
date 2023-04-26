@@ -22,8 +22,4 @@
   <depend>tf2_ros</depend>
   <depend>tf2_eigen</depend>
   <depend>yaml-cpp</depend>
-
-  <export>
-    <rct_ros_tools plugin="${prefix}/plugin_description.xml"/>
-  </export>
 </package>

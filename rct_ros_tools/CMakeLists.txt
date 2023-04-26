@@ -69,9 +69,9 @@ include_directories(
 # archives of poses and images that can be reloaded for testing and
 # development purposes.
 add_library(${PROJECT_NAME}
-  src/data_set.cpp
   src/loader_utils.cpp
   src/parameter_loaders.cpp
+  src/data_set.cpp
 )
 add_dependencies(${PROJECT_NAME} ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 target_link_libraries(${PROJECT_NAME}
@@ -80,15 +80,6 @@ target_link_libraries(${PROJECT_NAME}
  rct::rct_optimizations
  rct::rct_image_tools
  rct::rct_common
-)
-
-add_library(${PROJECT_NAME}_target_loader_plugins
-  src/target_loader_plugins.cpp
-)
-target_link_libraries(${PROJECT_NAME}_target_loader_plugins
-  ${catkin_LIBRARIES}
-  yaml-cpp
-  rct::rct_image_tools
 )
 
 # Executable for collecting data sets via subscribers and triggered with services
