@@ -6,6 +6,7 @@ find_package(OpenCV REQUIRED)
 find_package(yaml-cpp REQUIRED)
 find_package(rct_common REQUIRED)
 find_package(rct_optimizations REQUIRED)
+find_package(boost_plugin_loader REQUIRED)
 
 find_package(Eigen3 REQUIRED)
 if(NOT EIGEN3_INCLUDE_DIRS)
@@ -29,6 +30,7 @@ add_library(${PROJECT_NAME} SHARED
 )
 target_compile_options(${PROJECT_NAME} PUBLIC -std=c++11)
 target_compile_options(${PROJECT_NAME} PRIVATE -Wall -Wextra)
+target_compile_definitions(${PROJECT_NAME} PUBLIC RCT_TARGET_PLUGINS="${PROJECT_NAME}_plugins")
 target_include_directories(${PROJECT_NAME} PUBLIC
   "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"
   "$<INSTALL_INTERFACE:include>")
@@ -45,6 +47,21 @@ target_link_libraries(${PROJECT_NAME} PUBLIC
   yaml-cpp
   Eigen3::Eigen
   rct::rct_optimizations
+)
+
+# Target loader plugins
+add_library(${PROJECT_NAME}_plugins SHARED
+  src/${PROJECT_NAME}/target_loader_plugins)
+target_compile_options(${PROJECT_NAME}_plugins PUBLIC -std=c++11)
+target_compile_options(${PROJECT_NAME}_plugins PRIVATE -Wall -Wextra)
+target_compile_definitions(${PROJECT_NAME}_plugins PUBLIC SECTION="rct_im")
+target_include_directories(${PROJECT_NAME}_plugins PUBLIC
+  "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"
+  "$<INSTALL_INTERFACE:include>")
+target_link_libraries(${PROJECT_NAME}_plugins PUBLIC
+  boost_plugin_loader::boost_plugin_loader
+  yaml-cpp
+  ${PROJECT_NAME}
 )
 
 # Modified circle grid finder executable
@@ -68,7 +85,7 @@ if(RCT_BUILD_TESTS)
   add_subdirectory(test)
 endif()
 
-rct_configure_package(${PROJECT_NAME})
+rct_configure_package(TARGETS ${PROJECT_NAME} ${PROJECT_NAME}_plugins ${PROJECT_NAME}_test)
 
 install(DIRECTORY include/${PROJECT_NAME}
   DESTINATION include

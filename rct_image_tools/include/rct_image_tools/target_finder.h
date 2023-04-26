@@ -12,6 +12,9 @@ namespace rct_image_tools
 class TargetFinder
 {
 public:
+  using Ptr = std::shared_ptr<TargetFinder>;
+  using ConstPtr = std::shared_ptr<const TargetFinder>;
+
   TargetFinder() = default;
   virtual ~TargetFinder() = default;
 
