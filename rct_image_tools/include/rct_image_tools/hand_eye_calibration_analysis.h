@@ -7,7 +7,7 @@
 #include <boost/accumulators/accumulators.hpp>
 #include <boost/accumulators/statistics.hpp>
 #include <opencv2/highgui.hpp>
-#include <ros/console.h>
+#include <console_bridge/console.h>
 
 using namespace rct_optimizations;
 using namespace rct_image_tools;
@@ -89,9 +89,10 @@ void analyzeResults(const ExtrinsicHandEyeProblem2D3D& problem, const ExtrinsicH
                      .angularDistance(Eigen::Quaterniond(camera_to_target_pnp.linear())));
   }
 
-  ROS_INFO_STREAM("Difference in camera to target transform between extrinsic calibration and PnP optimization");
-  ROS_INFO_STREAM("Position:\n\tMean (m): " << ba::mean(pos_diff_acc)
-                                            << "\n\tStd. Dev. (m): " << std::sqrt(ba::variance(pos_diff_acc)));
-  ROS_INFO_STREAM("Orientation:\n\tMean (deg): " << ba::mean(ori_diff_acc) * 180.0 / M_PI << "\n\tStd. Dev. (deg): "
-                                                 << std::sqrt(ba::variance(ori_diff_acc)) * 180.0 / M_PI);
+  CONSOLE_BRIDGE_logInform("Difference in camera to target transform between extrinsic calibration and PnP "
+                           "optimization");
+  CONSOLE_BRIDGE_logInform("Position:\n\tMean (m): %f\n\tStd. Dev. (m): %f", ba::mean(pos_diff_acc),
+                           std::sqrt(ba::variance(pos_diff_acc)));
+  CONSOLE_BRIDGE_logInform("Orientation:\n\tMean (deg): %f\n\tStd. Dev. (deg): %f",
+                           ba::mean(ori_diff_acc) * 180.0 / M_PI, std::sqrt(ba::variance(ori_diff_acc)) * 180.0 / M_PI);
 }

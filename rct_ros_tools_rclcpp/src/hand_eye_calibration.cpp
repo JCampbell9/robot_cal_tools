@@ -8,7 +8,7 @@
 #include <rct_optimizations/serialization/problems.h>
 #include <rct_optimizations/validation/homography_validation.h>
 // Calibration analysis
-#include "hand_eye_calibration_analysis.h"
+#include <rct_image_tools/hand_eye_calibration_analysis.h>
 
 #include <boost_plugin_loader/plugin_loader.hpp>
 #include <opencv2/highgui/highgui.hpp>
