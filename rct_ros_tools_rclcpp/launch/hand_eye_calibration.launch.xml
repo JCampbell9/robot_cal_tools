@@ -4,7 +4,8 @@
   <arg name="target_file" />
   <arg name="homography_threshold"/>
   <arg name="intrinsics"/>
-  <!-- Guess -->
+  <arg name="output_file"/>
+  <!-- Transform guess TF frames -->
   <arg name="target_mount_frame" />
   <arg name="target_frame" />
   <arg name="camera_mount_frame" />
@@ -15,6 +16,8 @@
     <param name="target_file" value="$(var target_file)"/>
     <param name="intrinsics" value="$(var intrinsics)" />
     <param name="homography_threshold" value="$(var homography_threshold)"/>
+    <param name="output_file" value="$(var output_file)"/>
+    <!-- Transform guess TF frames -->
     <param name="target_mount_frame" value="$(var target_mount_frame)" />
     <param name="target_frame" value="$(var target_frame)" />
     <param name="camera_mount_frame" value="$(var camera_mount_frame)" />

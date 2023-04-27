@@ -11,11 +11,13 @@
 #include <rct_image_tools/hand_eye_calibration_analysis.h>
 
 #include <boost_plugin_loader/plugin_loader.hpp>
+#include <fstream>
 #include <opencv2/highgui/highgui.hpp>
 #include <opencv2/imgproc.hpp>
 #include <rclcpp/rclcpp.hpp>
 #include <tf2_ros/transform_listener.h>
 #include <tf2_eigen/tf2_eigen.h>
+#include <yaml-cpp/yaml.h>
 
 using namespace rct_optimizations;
 using namespace rct_image_tools;
@@ -40,13 +42,18 @@ int main(int argc, char** argv)
 
   auto node = std::make_shared<rclcpp::Node>("camera_on_wrist_extrinsic");
 
-  // Load the data set path from ROS param
   try
   {
-    auto homography_threshold = declare_and_get<double>(node.get(), "homography_threshold");
-    CameraIntrinsics intr = loadIntrinsics(declare_and_get<std::string>(node.get(), "intrinsics"));
+    // Create our calibration problem
+    ExtrinsicHandEyeProblem2D3D problem;
 
-    // Attempt to load the data set via the data record yaml file:
+    // Load the file location for the output YAML file
+    auto output_file = declare_and_get<std::string>(node.get(), "output_file");
+
+    auto homography_threshold = declare_and_get<double>(node.get(), "homography_threshold");
+    problem.intr = loadIntrinsics(declare_and_get<std::string>(node.get(), "intrinsics"));
+
+    // Attempt to load the data set
     auto data_path = declare_and_get<std::string>(node.get(), "data_path");
     boost::optional<ExtrinsicDataSet> maybe_data_set = parseFromFile(data_path);
     if (!maybe_data_set)
@@ -55,24 +62,21 @@ int main(int argc, char** argv)
     // We know it exists, so define a helpful alias
     const ExtrinsicDataSet& data_set = *maybe_data_set;
 
-    // Lets create a class that will search for the target in our raw images.
-    auto target_file = declare_and_get<std::string>(node.get(), "target");
+    // Lets load a plugin that will search for the target in our raw images.
+    TargetFinderPlugin::Ptr target_finder;
+    boost_plugin_loader::PluginLoader loader;
+    {
+      // Configure the plugin loader
+      loader.search_libraries.insert(RCT_TARGET_PLUGINS);
 
-    // Configure the plugin loader
-    boost_plugin_loader::PluginLoader loader_;
-    loader_.search_libraries.insert(RCT_TARGET_PLUGINS);
+      auto target_file = declare_and_get<std::string>(node.get(), "target");
+      const YAML::Node target_config = YAML::LoadFile(target_file)["target_finder"];
+      target_finder =
+          loader.createInstance<rct_image_tools::TargetFinderPlugin>(target_config["type"].as<std::string>());
+      target_finder->init(target_config);
+    }
 
-    // Load the target finder plugin
-    const YAML::Node target_config = YAML::LoadFile(target_file)["target_finder"];
-    TargetFinderPlugin::Ptr target_finder =
-        loader_.createInstance<rct_image_tools::TargetFinderPlugin>(target_config["type"].as<std::string>());
-    target_finder->init(target_config);
-
-    // Now we create our calibration problem
-    ExtrinsicHandEyeProblem2D3D problem;
-    problem.intr = intr;  // Set the camera properties
-
-    // Our 'base to camera guess': A camera off to the side, looking at a point centered in front of the robot
+    // Load the calibration transform guesses using TF
     {
       tf2_ros::Buffer buffer(node->get_clock());
       tf2_ros::TransformListener listener(buffer);
@@ -154,12 +158,10 @@ int main(int argc, char** argv)
     printOptResults(opt_result.converged, opt_result.initial_cost_per_obs, opt_result.final_cost_per_obs);
     printNewLine();
 
-    Eigen::Isometry3d c = opt_result.camera_mount_to_camera;
-    printTransform(c, "Wrist", "Camera", "WRIST TO CAMERA");
+    printTransform(opt_result.camera_mount_to_camera, "Camera Mount", "Camera", "CAMERA MOUNT TO CAMERA");
     printNewLine();
 
-    Eigen::Isometry3d t = opt_result.target_mount_to_target;
-    printTransform(t, "Base", "Target", "BASE TO TARGET");
+    printTransform(opt_result.target_mount_to_target, "Target Mount", "Target", "TARGET MOUNT TO TARGET");
     printNewLine();
 
     std::cout << opt_result.covariance.printCorrelationCoeffAboveThreshold(0.5) << std::endl;
@@ -169,6 +171,14 @@ int main(int argc, char** argv)
     // parameters We will then see how much this transform differs from the same transform calculated using the results
     // of the extrinsic calibration
     analyzeResults(problem, opt_result, found_images, WINDOW);
+
+    // Save
+    {
+      std::ofstream fh(output_file);
+      if (!fh)
+        throw std::runtime_error("Failed to open file '" + output_file + "'");
+      fh << YAML::Node(opt_result);
+    }
   }
   catch (const std::exception& ex)
   {
