@@ -52,7 +52,7 @@ public:
     loader_.search_libraries.insert(RCT_TARGET_PLUGINS);
 
     // Load the target finder plugin
-    const YAML::Node target_config = YAML::LoadFile(target_file)["target_finder"];
+    const YAML::Node target_config = YAML::LoadFile(target_file);
     finder_ = loader_.createInstance<rct_image_tools::TargetFinderPlugin>(target_config["type"].as<std::string>());
     finder_->init(target_config);
   }

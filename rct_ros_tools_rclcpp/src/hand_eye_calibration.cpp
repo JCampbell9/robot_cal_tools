@@ -70,7 +70,7 @@ int main(int argc, char** argv)
       loader.search_libraries.insert(RCT_TARGET_PLUGINS);
 
       auto target_file = declare_and_get<std::string>(node.get(), "target");
-      const YAML::Node target_config = YAML::LoadFile(target_file)["target_finder"];
+      const YAML::Node target_config = YAML::LoadFile(target_file);
       target_finder =
           loader.createInstance<rct_image_tools::TargetFinderPlugin>(target_config["type"].as<std::string>());
       target_finder->init(target_config);
