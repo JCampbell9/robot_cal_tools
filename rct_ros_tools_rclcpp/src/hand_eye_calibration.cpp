@@ -39,8 +39,7 @@ T declare_and_get(rclcpp::Node* node, const std::string& key)
 int main(int argc, char** argv)
 {
   rclcpp::init(argc, argv);
-
-  auto node = std::make_shared<rclcpp::Node>("camera_on_wrist_extrinsic");
+  auto node = std::make_shared<rclcpp::Node>("hand_eye_calibration");
 
   try
   {
@@ -50,7 +49,10 @@ int main(int argc, char** argv)
     // Load the file location for the output YAML file
     auto output_file = declare_and_get<std::string>(node.get(), "output_file");
 
+    // Load the homography threshold used to check detected target patterns
     auto homography_threshold = declare_and_get<double>(node.get(), "homography_threshold");
+
+    // Load the camera intrinsics
     problem.intr = loadIntrinsics(declare_and_get<std::string>(node.get(), "intrinsics"));
 
     // Attempt to load the data set
