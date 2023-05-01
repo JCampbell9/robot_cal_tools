@@ -6,7 +6,7 @@
   <arg name="save_dir" default="/tmp/calibration_data"/>
   <arg name="target_file"/>
 
-  <node pkg="rct_ros_tools_rclcpp" exec="command_line_data_collection">
+  <node pkg="rct_ros_tools_rclcpp" exec="command_line_data_collection" output="screen">
     <param name="base_frame" value="$(var base_frame)"/>
     <param name="tool_frame" value="$(var tool_frame)"/>
     <param name="image_topic" value="$(var image_topic)"/>

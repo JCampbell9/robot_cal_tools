@@ -71,7 +71,7 @@ int main(int argc, char** argv)
       // Configure the plugin loader
       loader.search_libraries.insert(RCT_TARGET_PLUGINS);
 
-      auto target_file = declare_and_get<std::string>(node.get(), "target");
+      auto target_file = declare_and_get<std::string>(node.get(), "target_file");
       const YAML::Node target_config = YAML::LoadFile(target_file);
       target_finder =
           loader.createInstance<rct_image_tools::TargetFinderPlugin>(target_config["type"].as<std::string>());
@@ -128,7 +128,8 @@ int main(int argc, char** argv)
         obs.to_target_mount = Eigen::Isometry3d::Identity();
         obs.correspondence_set = target_finder->target().createCorrespondences(target_features);
 
-        //// 3. Check that a homography matrix can accurately reproject the observed points onto the expected target points within a defined threshold
+        //// 3. Check that a homography matrix can accurately reproject the observed points onto the expected target
+        ///     points within a defined threshold
         rct_optimizations::RandomCorrespondenceSampler random_sampler(obs.correspondence_set.size(),
                                                                       obs.correspondence_set.size() / 3);
         Eigen::VectorXd homography_error =
