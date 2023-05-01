@@ -3,6 +3,7 @@
 #include <rct_image_tools/image_utils.h>
 #include <rct_optimizations/serialization/eigen.h>
 
+#include <boost/filesystem.hpp>
 #include <fstream>
 #include <opencv2/highgui.hpp>
 #include <console_bridge/console.h>
@@ -100,9 +101,12 @@ void writeDirectory(const std::string& path, const rct_ros_tools::ExtrinsicDataS
 
 bool rct_ros_tools::saveToDirectory(const std::string& path, const rct_ros_tools::ExtrinsicDataSet& data)
 {
-  mkdir(path.c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
-  mkdir((path + "/images").c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
-  mkdir((path + "/poses").c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
+  {
+    auto boost_path = boost::filesystem::path(path);
+    boost::filesystem::create_directories(boost_path);
+    boost::filesystem::create_directories(boost_path / "images");
+    boost::filesystem::create_directories(boost_path / "poses");
+  }
 
   for (std::size_t i = 0; i < data.images.size(); ++i)
   {
