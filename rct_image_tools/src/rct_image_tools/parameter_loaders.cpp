@@ -7,12 +7,13 @@
 
 namespace rct_ros_tools
 {
-rct_optimizations::CameraIntrinsics loadIntrinsics(const std::string& path)
+template <typename T>
+T load(const std::string& path)
 {
   try
   {
     YAML::Node n = YAML::LoadFile(path);
-    return n.as<rct_optimizations::CameraIntrinsics>();
+    return n.as<T>();
   }
   catch (YAML::Exception &ex)
   {
@@ -20,11 +21,12 @@ rct_optimizations::CameraIntrinsics loadIntrinsics(const std::string& path)
   }
 }
 
-bool loadIntrinsics(const std::string& path, rct_optimizations::CameraIntrinsics& intrinsics)
+template <typename T>
+bool load(const std::string& path, T& intrinsics)
 {
   try
   {
-    intrinsics = loadIntrinsics(path);
+    intrinsics = load<T>(path);
   }
   catch (BadFileException &ex)
   {
@@ -36,34 +38,11 @@ bool loadIntrinsics(const std::string& path, rct_optimizations::CameraIntrinsics
   return true;
 }
 
-Eigen::Isometry3d loadPose(const std::string& path)
-{
-  try
-  {
-    YAML::Node n = YAML::LoadFile(path);
-    return n.as<Eigen::Isometry3d>();
-  }
-  catch (YAML::Exception &ex)
-  {
-    throw BadFileException(std::string("YAML failure: ") + ex.what());
-  }
-}
+template rct_optimizations::CameraIntrinsics load(const std::string& path);
+template bool load(const std::string& path, rct_optimizations::CameraIntrinsics& pose);
 
-bool loadPose(const std::string& path, Eigen::Isometry3d& pose)
-{
-  try
-  {
-    pose = loadPose(path);
-  }
-  catch (BadFileException &ex)
-  {
-    std::stringstream ss;
-    ss << "Failed to load pose from file: " << ex.what();
-    CONSOLE_BRIDGE_logError(ss.str().c_str());
-    return false;
-  }
-  return true;
-}
+template Eigen::Isometry3d load(const std::string& path);
+template bool load(const std::string& path, Eigen::Isometry3d& pose);
 
 } // namespace rct_ros_tools
 
