@@ -53,7 +53,7 @@ int main(int argc, char** argv)
     auto homography_threshold = declare_and_get<double>(node.get(), "homography_threshold");
 
     // Load the camera intrinsics
-    problem.intr = loadIntrinsics(declare_and_get<std::string>(node.get(), "intrinsics"));
+    problem.intr = load<rct_optimizations::CameraIntrinsics>(declare_and_get<std::string>(node.get(), "intrinsics"));
 
     // Attempt to load the data set
     auto data_path = declare_and_get<std::string>(node.get(), "data_path");
