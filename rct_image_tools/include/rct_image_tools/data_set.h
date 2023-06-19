@@ -14,6 +14,8 @@ struct ExtrinsicDataSet
 {
   std::vector<cv::Mat> images;
   std::vector<Eigen::Isometry3d> tool_poses;
+  std::vector<std::vector<double>> camera_chain_joints;
+  std::vector<std::vector<double>> target_chain_joints;
 };
 
 boost::optional<ExtrinsicDataSet> parseFromFile(const std::string& path);

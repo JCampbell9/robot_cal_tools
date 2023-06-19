@@ -38,6 +38,8 @@ rct_ros_tools::ExtrinsicDataSet parse(const YAML::Node& root, const std::string&
     // Each entry should have a pose and image path. This path is relative to the root_path directory!
     const auto img_path = root[i]["image"].as<std::string>();
     const auto pose_path = root[i]["pose"].as<std::string>();
+    const auto camera_joints_path = root[i]["camera_joints"].as<std::string>();
+    const auto target_joints_path = root[i]["target_joints"].as<std::string>();
     cv::Mat image = rct_ros_tools::readImageOpenCV(combine(root_path, img_path));
 
     if (image.empty())
@@ -47,14 +49,30 @@ rct_ros_tools::ExtrinsicDataSet parse(const YAML::Node& root, const std::string&
     }
 
     Eigen::Isometry3d p;
-    if (!rct_ros_tools::loadPose(combine(root_path, pose_path), p))
+    if (!rct_ros_tools::load(combine(root_path, pose_path), p))
     {
       CONSOLE_BRIDGE_logWarn("Failed to load pose %i. Skipping...", i);
       continue;
     }
 
+    std::vector<double> camera_joints;
+    if (!rct_ros_tools::load(camera_joints_path, camera_joints))
+    {
+      CONSOLE_BRIDGE_logWarn("Failed to load camera joints %i. Skipping...", i);
+      continue;
+    }
+
+    std::vector<double> target_joints;
+    if(!rct_ros_tools::load(target_joints_path, target_joints))
+    {
+      CONSOLE_BRIDGE_logWarn("Failed to load target joints %i. Skipping...", i);
+      continue;
+    }
+
     data.images.push_back(image);
     data.tool_poses.push_back(p);
+    data.camera_chain_joints.push_back(camera_joints);
+    data.target_chain_joints.push_back(target_joints);
   }
 
   return data;
@@ -75,7 +93,8 @@ boost::optional<rct_ros_tools::ExtrinsicDataSet> rct_ros_tools::parseFromFile(co
   }
 }
 
-void writePose(const std::string& path, const Eigen::Isometry3d& pose)
+template<typename T>
+void write(const std::string& path, const T& pose)
 {
   YAML::Node root(pose);
   std::ofstream ofh (path);
@@ -91,7 +110,8 @@ void writeDirectory(const std::string& path, const rct_ros_tools::ExtrinsicDataS
     YAML::Node n;
     n["pose"] = "poses/" + std::to_string(i) + ".yaml";
     n["image"] = "images/" + std::to_string(i) + ".png";
-
+    n["camera_joints"] = "camera_joints/" + std::to_string(i) + ".yaml";
+    n["target_joints"] = "target_joints/" + std::to_string(i) + ".yaml";
     root.push_back(n);
   }
 
@@ -117,7 +137,19 @@ bool rct_ros_tools::saveToDirectory(const std::string& path, const rct_ros_tools
   for (std::size_t i = 0; i < data.tool_poses.size(); ++i)
   {
     auto name = path + "/poses/" + std::to_string(i) + ".yaml";
-    writePose(name, data.tool_poses[i]);
+    write(name, data.tool_poses[i]);
+  }
+
+  for (std::size_t i = 0; i < data.camera_chain_joints.size(); ++i)
+  {
+    auto name = path + "/camera_joints/" + std::to_string(i) + ".yaml";
+    write(name, data.camera_chain_joints[i]);
+  }
+
+  for (std::size_t i = 0; i < data.target_chain_joints.size(); ++i)
+  {
+    auto name = path + "/target_joints/" + std::to_string(i) + ".yaml";
+    write(name, data.target_chain_joints[i]);
   }
 
   writeDirectory(path + "/data.yaml", data);
