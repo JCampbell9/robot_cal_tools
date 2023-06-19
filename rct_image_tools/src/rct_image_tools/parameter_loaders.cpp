@@ -44,5 +44,8 @@ template bool load(const std::string& path, rct_optimizations::CameraIntrinsics&
 template Eigen::Isometry3d load(const std::string& path);
 template bool load(const std::string& path, Eigen::Isometry3d& pose);
 
+template std::vector<double> load(const std::string& path);
+template bool load(const std::string& path, std::vector<double>& pose);
+
 } // namespace rct_ros_tools
 
