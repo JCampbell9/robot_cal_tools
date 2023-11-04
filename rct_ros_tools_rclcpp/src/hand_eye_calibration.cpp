@@ -16,7 +16,7 @@
 #include <opencv2/imgproc.hpp>
 #include <rclcpp/rclcpp.hpp>
 #include <tf2_ros/transform_listener.h>
-#include <tf2_eigen/tf2_eigen.h>
+#include <tf2_eigen/tf2_eigen.hpp>
 #include <yaml-cpp/yaml.h>
 
 using namespace rct_optimizations;
@@ -30,7 +30,7 @@ template <typename T>
 T declare_and_get(rclcpp::Node* node, const std::string& key)
 {
   T val;
-  node->declare_parameter(key);
+  node->declare_parameter(key, std::string());
   if (!node->get_parameter(key, val))
     throw(std::runtime_error("Failed to load '" + key + "' parameter"));
   return val;

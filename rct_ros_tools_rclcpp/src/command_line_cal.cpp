@@ -4,13 +4,13 @@
 
 #include <boost_plugin_loader/plugin_loader.hpp>
 #include <cv_bridge/cv_bridge.h>
-#include <image_transport/image_transport.h>
+#include <image_transport/image_transport.hpp>
 #include <opencv2/highgui.hpp>
 #include <rclcpp/rclcpp.hpp>
 #include <std_srvs/srv/trigger.hpp>
 #include <tf2_ros/transform_listener.h>
-#include <tf2_eigen/tf2_eigen.h>
-#include <tf2_geometry_msgs/tf2_geometry_msgs.h>
+#include <tf2_eigen/tf2_eigen.hpp>
+#include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
 #include <vector>
 #include <yaml-cpp/yaml.h>
 
@@ -18,7 +18,7 @@ template <typename T>
 T declare_and_get(rclcpp::Node* node, const std::string& key)
 {
   T val;
-  node->declare_parameter(key);
+  node->declare_parameter(key, std::string());
   if (!node->get_parameter(key, val))
     throw(std::runtime_error("Failed to load '" + key + "' parameter"));
   return val;

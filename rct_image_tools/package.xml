@@ -14,7 +14,7 @@
   <depend>yaml-cpp</depend>
   <depend>libopencv-dev</depend>
   <depend>eigen</depend>
-  <depend>boost_plugin_loader<depend>
+  <depend>boost_plugin_loader</depend>
 
   <export>
     <build_type>cmake</build_type>
